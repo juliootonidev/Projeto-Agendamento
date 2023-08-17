@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "aws-sdk": "^2.1432.0",
+    "busboy": "^1.6.0",
+    "busboy-body-parser": "^0.3.2",
+    "connect-busboy": "^1.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
