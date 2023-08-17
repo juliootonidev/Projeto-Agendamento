@@ -1,9 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Salao = require('../models/salao');
-const Servico = require('../models/servico');
-const Horario = require('../models/horario');
 const Colaborador = require('../models/colaborador');
 
 router.post('/', async (req, res) => {
@@ -34,3 +31,5 @@ router.post('/', async (req, res) => {
         res.json({ error: true, message: err.message })
     }
 });
+
+module.exports = router;
