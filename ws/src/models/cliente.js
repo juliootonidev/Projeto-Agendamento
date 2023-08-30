@@ -11,7 +11,7 @@ const cliente = new Schema({
     status: { type: String, enum: ['I', 'A'], required: true, default: 'A' },
     sexo: { type: String, enum: ['M', 'F'], required: true },
     documento: {
-        tipo: { type: String, enum: ['individual', 'corporation'], required: true },
+        tipo: { type: String, enum: ['cpf', 'cnpj'], required: true },
         numero: { type: String, required: true }
     },
     endereco:{

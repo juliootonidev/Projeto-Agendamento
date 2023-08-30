@@ -81,7 +81,7 @@ router.post('/', async(req, res)=>{
 });
 
 // Rota de atualização de serviço por ID
-router.put('/:id', async (req, res) => {
+router.put('/update/:id', async (req, res) => {
     const servicoId = req.params.id;
     
     try {
@@ -122,6 +122,16 @@ router.get('/salao/:salaoId', async (req, res) => {
         res.json({ servicos });
     }catch (err) {
         res.json({error: true, message: err.message});
+    }
+});
+
+// Rota para listar todos os serviços
+router.get('/lista', async (req, res) => {
+    try {
+        const servicos = await Servico.find({ status: { $ne: 'E' } });
+        res.json({ servicos });
+    } catch (err) {
+        res.json({ error: true, message: err.message });
     }
 });
 
