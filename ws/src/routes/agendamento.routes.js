@@ -9,6 +9,7 @@ const Servico = require('../models/servico');
 const Colaborador = require('../models/colaborador');
 const Agendamento = require('../models/agendamento');
 const Horario = require('../models/horario');
+const _ = require('lodash');
 
 
 router.post('/', async ( req, res ) => {
@@ -112,21 +113,151 @@ router.post('/agendar', async (req, res) => {
 
 
 router.post('/dias-disponiveis', async (req, res) => {
-    try {
-      const { data, salaold, servicold } = req.body;
-  
-      const horarios = await Horario.find({ sala: salaold, data });
-      const servico = await Servico.findById(servicold).select('duracao');
-      const duracaoServico = servico ? servico.duracao : 0;
-  
-    let agenda = [];
-    let ladtDay = moment(data);
-  
-      
-      res.json({ horarios, duracaoServico });
-    } catch (err) {
-      res.status(500).json({ error: true, message: err.message });
+  try {
+    const { data, salaold, servicold } = req.body;
+
+    const horarios = await Horario.find({ salaold });
+    const servicos = await Servico.findById(servicold).select('duracao');
+console.log(servicos)
+    if (!servicos) {
+      // Lida com o caso em que o serviço não é encontrado
+      return res.status(400).json({ error: true, message: 'Serviço não encontrado' });
     }
-  });
+
+    
+
+    let agenda = [];
+    let colaboradores = [];
+    let lastDay = moment(data);
+
+    // PRECISA MUDAR A MODAL DO SERVICO DE NUMBER PARA DATE DA TABELA DURACAO
+    const servicoMinutos = util.hourToMinutes(
+      moment(servicos.duracao).format('HH:mm')
+    );
+
+    const servicoSlots = util.sliceMinutes(
+      servicos.duracao, // 1:30
+      moment(servicos.duracao).add(servicoMinutos, 'minutes'),
+      util.SLOT_DURATION
+    ).length;
+
+    for (let i = 0; i <= 365 && agenda.length <= 7; i++) {
+      const espacosValidos = horarios.filter(horario => {
+        const diaSemanDisponivel = horario.dias.includes(moment(lastDay).day());
+    
+        // Verifique se horario.especialidades é uma matriz antes de usar o método .includes()
+        const servicoDisponivel = Array.isArray(horario.especialidades) && horario.especialidades.includes(servicold);
+    
+        return diaSemanDisponivel && servicoDisponivel;
+      });
+
+      if (espacosValidos.length > 0) {
+        let todosHorariosDias = {};
+
+        for (let spaco of espacosValidos) {
+          for (let colaboradorId of spaco.colaboradores) {
+            if (!todosHorariosDias[colaboradorId]) {
+              todosHorariosDias[colaboradorId] = [];
+            }
+
+            todosHorariosDias[colaboradorId] = {
+              ...todosHorariosDias[colaboradorId],
+              ...util.sliceMinutes(
+                util.mergeDateTime(lastDay, spaco.inicio),
+                util.mergeDateTime(lastDay, spaco.fim),
+                util.SLOT_DURATION
+              ),
+            };
+          }
+        }
+
+        for (let colaboradorId of Object.keys(todosHorariosDias)) {
+          const agendamentos = await Agendamento.find({
+            colaboradorId,
+            data: {
+              $gte: moment(lastDay).startOf('day'),
+              $lte: moment(lastDay).endOf('day'),
+            },
+          })
+            .select('data servicoId -_id')
+            .populate('servicoId', 'duracao');
+
+          let horariosOcupados = agendamentos.map((agendamento) => ({
+            inicio: moment(agendamento.data),
+            final: moment(agendamento.data).add(
+              util.hourToMinutes(
+                moment(agendamento.servicoId.duracao).format('HH:mm')
+              ),
+              'minutes'
+            ),
+          }));
+          horariosOcupados = horariosOcupados.map((horario) =>
+            util.sliceMinutes(horario.inicio, horario.final, util.SLOT_DURATION)
+          ).flat();
+
+          let horariosLivres = util.aplitByValue(todosHorariosDias[colaboradorId].map((horarioLivre) => {
+            return horariosOcupados.includes(horarioLivre) ? '-' : horarioLivre;
+          }),
+            '-'
+          ).filter(space => space.length > 0);
+
+          horariosLivres = horariosLivres.filter((horarios) => horarios.length >= servicoSlots);
+          horariosLivres = horariosLivres.map((slot) => slot.filter((hroario, index) => slot.length - index >= servicoSlots)).flat();
+          horariosLivres = _.chunk(horariosLivres, 2);
+
+          if (horariosLivres.length == 0) {
+            todosHorariosDias = _.omit(todosHorariosDias, colaboradorId);
+          } else {
+            todosHorariosDias[colaboradorId] = horariosLivres;
+          }
+
+          const totalEspecialistas = Object.keys(todosHoraiosDias).length;
+
+          if (totalEspecialistas > 0) {
+            colaboradores.push(Object.keys(todosHorariosDias));
+            agenda.push({
+              [lastDay.format('YYYY-MM-DD')]: todosHorariosDias,
+            });
+          }
+        }
+      }
+
+      lastDay = lastDay.add(1, 'day');
+    }
+
+    colaboradores = _.uniq(colaboradores.flat());
+
+    colaboradores = await Colaborador.find({
+      _if: { $in: colaboradores },
+    }).select('nome foto');
+
+    colaboradores = colaboradores.map((c) => ({
+      ...c,
+      nome: c.nome.split(' ')[0],
+    }));
+    res.json({
+      error: false,
+      colaboradores,
+      agenda,
+    });
+  } catch (err) {
+    res.status(500).json({ error: true, message: err.message });
+  }
+});
+
+
+router.post('/dias-disponiveis-teste', async (req, res) =>{
+  try{
+    const { data, salaold, servicold } = req.body;
+    const horarios = await Horario.find({ salaold });
+    const servicos = await Servico.findById(servicold).select('duracao');
+
+    let agenda = [];
+    let lastDay = moment();
+
+  }catch(err){
+    res.json({ error:true, message: err.message})
+  }
+});
 
 module.exports = router;
