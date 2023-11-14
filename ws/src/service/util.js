@@ -19,8 +19,9 @@ module.exports = {
 
    while(end > start) {
       slices.push(start.format('HH:mm'));
+
       start = start.add(duration, 'minutes');
-     count++;
+      count++;
    }
    return slices;
   },

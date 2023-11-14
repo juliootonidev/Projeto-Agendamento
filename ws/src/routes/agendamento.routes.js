@@ -118,7 +118,7 @@ router.post('/dias-disponiveis', async (req, res) => {
 
     const horarios = await Horario.find({ salaold });
     const servicos = await Servico.findById(servicold).select('duracao');
-console.log(servicos)
+  console.log(servicos)
     if (!servicos) {
       // Lida com o caso em que o serviço não é encontrado
       return res.status(400).json({ error: true, message: 'Serviço não encontrado' });
@@ -248,12 +248,39 @@ console.log(servicos)
 
 router.post('/dias-disponiveis-teste', async (req, res) =>{
   try{
-    const { data, salaold, servicold } = req.body;
-    const horarios = await Horario.find({ salaold });
-    const servicos = await Servico.findById(servicold).select('duracao');
+    const { data, salaoId, servicoId } = req.body;
+    const horarios = await Horario.find({ salaoId });
+    const servicos = await Servico.findById(servicoId).select('duracao');
 
     let agenda = [];
-    let lastDay = moment();
+    let lastDay = moment(data);
+
+    const servicoMinutos = util.hourToMinutes(moment(servicos.duracao).format('HH:mm'));
+
+    const servicoSlots = util.sliceMinutes(
+      servicos.duracao, // 1:30
+      moment(servicos.duracao).add(servicoMinutos, 'minutes'),
+      util.SLOT_DURATION
+    ).length; 
+
+    for (let i = 0; i <= 365 && agenda.length <= 7; i++) {
+      const espacosValidos = horarios.filter((horario) => {
+        const diaSemanDisponivel = horario.dias.includes(moment(lastDay).day());
+        
+
+        const servicoDisponivel = horario.especialidades.includes(servicoId);
+    
+        return diaSemanDisponivel && servicoDisponivel;
+      });
+
+      if (espacosValidos.length > 0) {
+        agenda.push(lastDay);
+      }
+
+      lastDay = moment(lastDay).add(1, 'day');
+    }
+
+    res.json({error:false, servicoMinutos, minutos: moment(servicos.duracao).format('HH:mm'), servicoSlots, agenda})
 
   }catch(err){
     res.json({ error:true, message: err.message})
