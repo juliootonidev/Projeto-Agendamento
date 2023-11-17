@@ -69,7 +69,6 @@ router.post('/filter', async( req, res)=>{
   }
 })
 
-// Rota para criar um novo agendamento
 router.post('/agendar', async (req, res) => {
   try {
     const {
@@ -110,7 +109,6 @@ router.post('/agendar', async (req, res) => {
     res.status(500).json({ erro: 'Ocorreu um erro ao criar o agendamento' });
   }
 });
-
 
 router.post('/dias-disponiveis', async (req, res) => {
   try {
@@ -169,6 +167,7 @@ router.post('/dias-disponiveis', async (req, res) => {
               ),
             };
           }
+          console.log(todosHorariosDias);
         }
 
         for (let colaboradorId of Object.keys(todosHorariosDias)) {
@@ -211,7 +210,7 @@ router.post('/dias-disponiveis', async (req, res) => {
             todosHorariosDias[colaboradorId] = horariosLivres;
           }
 
-          const totalEspecialistas = Object.keys(todosHoraiosDias).length;
+          const totalEspecialistas = Object.keys(todosHorariosDias).length;
 
           if (totalEspecialistas > 0) {
             colaboradores.push(Object.keys(todosHorariosDias));
@@ -245,7 +244,6 @@ router.post('/dias-disponiveis', async (req, res) => {
   }
 });
 
-
 router.post('/dias-disponiveis-teste', async (req, res) =>{
   try{
     const { data, salaoId, servicoId } = req.body;
@@ -253,6 +251,7 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
     const servicos = await Servico.findById(servicoId).select('duracao');
 
     let agenda = [];
+    let colaboradores = [];
     let lastDay = moment(data);
 
     const servicoMinutos = util.hourToMinutes(moment(servicos.duracao).format('HH:mm'));
@@ -273,8 +272,68 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
         return diaSemanDisponivel && servicoDisponivel;
       });
 
+
+      //TODOS OS HORARIOS DISPONINVEIS
       if (espacosValidos.length > 0) {
-        agenda.push(lastDay);
+        let todosHorariosDias = {};
+        for (let spaco of espacosValidos) {
+          for (let colaboradorId of spaco.colaboradores) {
+            if (!todosHorariosDias[colaboradorId]) {
+              todosHorariosDias[colaboradorId] = [];
+            }
+
+            todosHorariosDias[colaboradorId] = {
+              ...todosHorariosDias[colaboradorId],
+              ...util.sliceMinutes(
+                util.mergeDateTime(lastDay, spaco.inicio),
+                util.mergeDateTime(lastDay, spaco.fim),
+                util.SLOT_DURATION
+              ),
+            };
+          }
+        }
+       
+        for (let colaboradorId of Object.keys(todosHorariosDias)) {
+          
+          const agendamentos = await Agendamento.find({
+            colaboradorId,
+            data: {
+              $gte: moment(lastDay).startOf('day'),
+              $lte: moment(lastDay).endOf('day'),
+            },
+          })
+            .select('data -_id')
+            .populate('servicoId', 'duracao');
+
+          let horariosOcupados = agendamentos.map((agendamento) => ({
+            inicio: moment(agendamento.data),
+            final: moment(agendamento.data).add(
+              util.hourToMinutes(
+                moment(agendamento.servicoId.duracao).format('HH:mm')
+              ),
+              'minutes'
+            ),
+          }));
+          horariosOcupados = horariosOcupados.map((horario) =>
+            util.sliceMinutes(horario.inicio, horario.final, util.SLOT_DURATION)
+          ).flat();
+         
+          console.log(Object.values(todosHorariosDias[colaboradorId]));
+          todosHorariosDias = Object.values(todosHorariosDias[colaboradorId]).map(
+            (horarioLivre) => {
+              
+              return horariosOcupados.includes(horarioLivre)
+              ? '-'
+              : horarioLivre;
+            }
+            
+          );
+          console.log(todosHorariosDias);
+
+        }
+        agenda.push({
+          [lastDay.format('YYYY-MM-DD')]: todosHorariosDias,
+        });
       }
 
       lastDay = moment(lastDay).add(1, 'day');
