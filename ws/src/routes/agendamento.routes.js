@@ -265,8 +265,6 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
     for (let i = 0; i <= 365 && agenda.length <= 7; i++) {
       const espacosValidos = horarios.filter((horario) => {
         const diaSemanDisponivel = horario.dias.includes(moment(lastDay).day());
-        
-
         const servicoDisponivel = horario.especialidades.includes(servicoId);
     
         return diaSemanDisponivel && servicoDisponivel;
@@ -306,6 +304,7 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
             .populate('servicoId', 'duracao');
 
           let horariosOcupados = agendamentos.map((agendamento) => ({
+            colaboradorId,
             inicio: moment(agendamento.data),
             final: moment(agendamento.data).add(
               util.hourToMinutes(
@@ -319,27 +318,43 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
           ).flat();
          
           console.log(Object.values(todosHorariosDias[colaboradorId]));
-          todosHorariosDias = Object.values(todosHorariosDias[colaboradorId]).map(
+
+          let horariosLivres = util.splitByValue(Object.values(todosHorariosDias[colaboradorId]).map(
             (horarioLivre) => {
               
               return horariosOcupados.includes(horarioLivre)
               ? '-'
               : horarioLivre;
-            }
-            
-          );
+            }),
+            '-'
+          ).filter((space) => space.length > 0 );
           console.log(todosHorariosDias);
+          
+          horariosLivres = horariosLivres.filter((horarios) => horarios.length >= servicoSlots);
+          horariosLivres = horariosLivres.map((slot) => slot.filter((horario, index) => slot.length - index >= servicoSlots)).flat();
+          horariosLivres = _.chunk(horariosLivres, 2);
 
+          if (horariosLivres.length == 0) {
+            todosHorariosDias = _.omit(todosHorariosDias, colaboradorId);
+          } else {
+            todosHorariosDias[colaboradorId] = horariosLivres;
+          }
+
+          const totalEspecialistas = Object.keys(todosHorariosDias).length;
+
+          if (totalEspecialistas > 0) {
+            colaboradores.push(Object.keys(todosHorariosDias));
+            agenda.push({
+              [lastDay.format('YYYY-MM-DD')]: todosHorariosDias,
+            });
+          }
         }
-        agenda.push({
-          [lastDay.format('YYYY-MM-DD')]: todosHorariosDias,
-        });
       }
 
       lastDay = moment(lastDay).add(1, 'day');
     }
 
-    res.json({error:false, servicoMinutos, minutos: moment(servicos.duracao).format('HH:mm'), servicoSlots, agenda})
+    res.json({error:false, agenda})
 
   }catch(err){
     res.json({ error:true, message: err.message})

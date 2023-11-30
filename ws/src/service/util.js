@@ -31,15 +31,24 @@ module.exports = {
    return merged;
   },
   splitByValue: (array, value) => {
-    let newArray = [[]];
+    let newArray = [];
+    let currentArray = [];
+    
     array.forEach((item) => {
-    if(item =! value){
-      newArray [newArray.length - 1].push(item);
-    }else{
-      newArray.push([]);
-    }
+        if (item !== value) {
+            currentArray.push(item);
+        } else if (currentArray.length > 0) {
+            newArray.push(currentArray);
+            currentArray = [];
+        }
     });
+
+    if (currentArray.length > 0) {
+        newArray.push(currentArray);
+    }
+
     return newArray;
   },
+
   
 };
