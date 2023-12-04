@@ -45,29 +45,50 @@ router.post('/', async ( req, res ) => {
   }
 })
 
-router.post('/filter', async( req, res)=>{
-  try{
-
-    const { periodo, salaoId} = req.body; 
+router.post('/filter', async (req, res) => {
+  try {
+    const { periodo, salaoId } = req.body;
 
     const agendamentos = await Agendamento.find({
       salaoId,
-      data:{
-        $gte: moment(periodo.inicio).startOf('day'),
-        $lte: moment(periodo.final).endOf('day'),
-      }, 
+      data: {
+        $gte: moment(periodo.inicio).startOf('day').toDate(),
+        $lte: moment(periodo.final).endOf('day').toDate(),
+      },
     }).populate([
-      {path:'servicoId', select: 'titulo duracao'},
-      {path:'colaboradorId', select: 'nome'},
-      {path:'clienteId', select: 'nome'},
-    ])
+      { path: 'servicoId', select: 'titulo duracao' },
+      { path: 'colaboradorId', select: 'nome' },
+      { path: 'clienteId', select: 'nome' },
+    ]);
 
-    res.json({error:false, agendamentos})
+    // Mapear os resultados para personalizar o retorno
+    const resultadoPersonalizado = agendamentos.map(agendamento => ({
+      _id: agendamento._id,
+      data: agendamento.data,
+      valor: agendamento.valor,
+      servico: {
+        _id: agendamento.servicoId._id,
+        titulo: agendamento.servicoId.titulo,
+        duracao: agendamento.servicoId.duracao,
+      },
+      colaborador: {
+        _id: agendamento.colaboradorId._id,
+        nome: agendamento.colaboradorId.nome,
+      },
+      cliente: {
+        _id: agendamento.clienteId._id,
+        nome: agendamento.clienteId.nome,
+      },
+    }));
 
-  }catch (err){
-
+    res.json({ error: false, agendamentos: resultadoPersonalizado });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: true, message: 'Erro ao buscar os agendamentos' });
   }
-})
+});
+
+
 
 router.post('/agendar', async (req, res) => {
   try {
@@ -316,9 +337,9 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
           horariosOcupados = horariosOcupados.map((horario) =>
             util.sliceMinutes(horario.inicio, horario.final, util.SLOT_DURATION)
           ).flat();
-         
-          console.log(Object.values(todosHorariosDias[colaboradorId]));
 
+          console.log(horariosOcupados)
+         
           let horariosLivres = util.splitByValue(Object.values(todosHorariosDias[colaboradorId]).map(
             (horarioLivre) => {
               
@@ -328,7 +349,6 @@ router.post('/dias-disponiveis-teste', async (req, res) =>{
             }),
             '-'
           ).filter((space) => space.length > 0 );
-          console.log(todosHorariosDias);
           
           horariosLivres = horariosLivres.filter((horarios) => horarios.length >= servicoSlots);
           horariosLivres = horariosLivres.map((slot) => slot.filter((horario, index) => slot.length - index >= servicoSlots)).flat();
